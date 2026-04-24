@@ -1,32 +1,39 @@
-# 编译生成的文件
+# 编译产物
 *.o
-*.out
 *.exe
+*.out
 breakout
+breakout.exe
+
+# CMake构建目录
 build/
+cmake-build-*/
+src/CMakeCache.txt
+src/CMakeFiles/
+src/cmake_install.cmake
+src/Makefile
 
 # IDE文件
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # 系统文件
 .DS_Store
 Thumbs.db
 
-# 日志和临时文件
+# 日志和数据库
+scores.txt
 *.log
-*.tmp
 
-# 字体文件
-fonts/*.otf
+# 字体文件（太大）
 fonts/*.ttf
 fonts/*.ttc
+fonts/*.otf
 
-# 排行榜数据文件
-scores.txt
-
-# JSON配置备份
-*.json.backup
+# 临时文件
+*.tmp
+# Windows Zone Identifier
+*:Zone.Identifier
+*.Identifier

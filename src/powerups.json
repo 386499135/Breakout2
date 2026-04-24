@@ -1,43 +1,43 @@
 {
   "powerups": {
     "speed_boost": {
-      "name": "速度提升",
+      "name": "Speed Boost",
       "color": [0, 255, 0, 255],
       "duration": 5.0,
-      "drop_chance": 0.3,
-      "effect_value": 1.5
+      "drop_chance": 0.25,
+      "effect_value": 1.4
     },
     "slow_motion": {
-      "name": "减速",
+      "name": "Slow Motion",
       "color": [0, 100, 255, 255],
       "duration": 4.0,
       "drop_chance": 0.2,
-      "effect_value": 0.5
+      "effect_value": 0.6
     },
     "multi_ball": {
-      "name": "多重球",
+      "name": "Multi Ball",
       "color": [255, 0, 255, 255],
       "duration": 0.0,
-      "drop_chance": 0.15,
+      "drop_chance": 0.12,
       "effect_value": 2
     },
     "expand_paddle": {
-      "name": "加长挡板",
+      "name": "Wide Paddle",
       "color": [255, 255, 0, 255],
-      "duration": 6.0,
-      "drop_chance": 0.25,
-      "effect_value": 1.8
+      "duration": 4.0,
+      "drop_chance": 0.15,
+      "effect_value": 1.25
     },
     "extra_life": {
-      "name": "额外生命",
+      "name": "Extra Life",
       "color": [255, 100, 100, 255],
       "duration": 0.0,
-      "drop_chance": 0.1,
+      "drop_chance": 0.08,
       "effect_value": 1
     }
   },
   "global_settings": {
-    "base_drop_chance": 0.4,
+    "base_drop_chance": 0.3,
     "fall_speed": 2.5,
     "glow_effect": true
   }

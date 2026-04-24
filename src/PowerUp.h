@@ -94,8 +94,7 @@ public:
     std::string GetName() const override { return "减速"; }
 };
 
-class MultiBallEffect : public PowerUpEffect {
-private:
+class MultiBallEffect : public PowerUpEffect {private:
     int ballCount;
     
 public:
@@ -110,11 +109,15 @@ private:
     float multiplier;
     float originalWidth;
     bool applied;
+     float duration;      // 持续时间
+    float timer;         // 计时器
     
 public:
-    ExpandPaddleEffect(float mult) : multiplier(mult), originalWidth(0), applied(false) {}
+    ExpandPaddleEffect(float mult) : multiplier(mult), originalWidth(0), applied(false), duration(5.0f), timer(0.0f) {}
     void Apply(GameState* state) override;
     void Remove(GameState* state) override;
+    void Update(GameState* state, float deltaTime) override;
+    bool IsActive() const override { return timer < duration; }
     std::string GetName() const override { return "加长挡板"; }
 };
 

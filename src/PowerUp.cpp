@@ -3,6 +3,10 @@
 #include "Paddle.h"
 #include <cmath>
 #include <random>
+#include <fstream>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -58,7 +62,7 @@ void ParticleSystem::Update() {
         
         p.position.x += p.velocity.x;
         p.position.y += p.velocity.y;
-        p.velocity.y += 0.2f; // 重力
+        p.velocity.y += 0.2f;
         p.life -= deltaTime;
         p.color.a = (unsigned char)(255 * (p.life / 1.5f));
         
@@ -129,9 +133,18 @@ void ExpandPaddleEffect::Apply(GameState* state) {
     if (!applied) {
         originalWidth = state->paddle->GetRect().width;
         Rectangle rect = state->paddle->GetRect();
-        rect.width = originalWidth * multiplier;
+        float newWidth = originalWidth * multiplier;
+        
+        // 限制最大宽度为 200 像素
+        if (newWidth > 200.0f) {
+            newWidth = 200.0f;
+        }
+        
+        rect.width = newWidth;
         state->paddle->SetRect(rect);
         applied = true;
+        timer = 0.0f;
+        duration = 5.0f;
     }
 }
 
@@ -140,6 +153,16 @@ void ExpandPaddleEffect::Remove(GameState* state) {
         Rectangle rect = state->paddle->GetRect();
         rect.width = originalWidth;
         state->paddle->SetRect(rect);
+    }
+}
+
+void ExpandPaddleEffect::Update(GameState* state, float deltaTime) {
+    if (applied) {
+        timer += deltaTime;
+        if (timer >= duration) {
+            Remove(state);
+            applied = false;
+        }
     }
 }
 
@@ -163,23 +186,19 @@ void PowerUp::Update(float deltaTime) {
 void PowerUp::Draw(ParticleSystem& particleSystem) {
     if (!active) return;
     
-    // 绘制光晕效果
     float glowSize = 15.0f + sinf(glowTimer * 5.0f) * 3.0f;
     Color glowColor = color;
     glowColor.a = 100;
     DrawCircleV(position, glowSize, glowColor);
     
-    // 绘制道具主体
     DrawRectangleRec(rect, color);
     DrawRectangleLinesEx(rect, 2, WHITE);
     
-    // 绘制道具图标（简化的首字母）
     const char* icon = name.c_str();
     int fontSize = 20;
     int textWidth = MeasureText(icon, fontSize);
     DrawText(icon, (int)(position.x - textWidth/2), (int)(position.y - fontSize/2), fontSize, WHITE);
     
-    // 发射光晕粒子
     if (glowTimer > 0.1f) {
         particleSystem.EmitGlow(position, color, glowSize);
         glowTimer = 0.0f;
@@ -231,7 +250,7 @@ std::unique_ptr<PowerUp> PowerUpFactory::CreatePowerUp(const std::string& type, 
     }
     
     auto& data = config["powerups"][type];
-    std::string name = data.value("name", "道具");
+    std::string name = data.value("name", "PowerUp");
     auto colorArray = data.value("color", std::vector<int>{255, 255, 255, 255});
     Color color = {
         (unsigned char)colorArray[0],
@@ -263,5 +282,5 @@ std::unique_ptr<PowerUp> PowerUpFactory::CreatePowerUp(const std::string& type, 
 }
 
 float PowerUpFactory::GetDropChance() const {
-    return config.value("global_settings", json::object()).value("base_drop_chance", 0.4f);
+    return config.value("global_settings", json::object()).value("base_drop_chance", 0.3f);
 }
