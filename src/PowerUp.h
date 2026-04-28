@@ -1,22 +1,31 @@
 #ifndef POWERUP_H
 #define POWERUP_H
 #include "raylib.h"
-#include "Paddle.h"  // 需要完整定义
 #include <string>
-#include <functional>
 #include <memory>
 #include <vector>
-#include <nlohmann/json.hpp>
-#include <fstream>
 #include <random>
 #include <cmath>
-
-using json = nlohmann::json;
+#include <algorithm>
 
 // 前置声明
 class Ball;
+class Paddle;
 
-// 粒子系统
+// GameState 类
+class GameState {
+public:
+    std::vector<Ball>* balls;
+    Paddle* paddle;
+    int* lives;
+    int* score;
+    float* gameSpeed;
+    
+    GameState(std::vector<Ball>* b, Paddle* p, int* l, int* s, float* gs)
+        : balls(b), paddle(p), lives(l), score(s), gameSpeed(gs) {}
+};
+
+// 粒子结构
 struct Particle {
     Vector2 position;
     Vector2 velocity;
@@ -26,6 +35,7 @@ struct Particle {
     bool active;
 };
 
+// 粒子系统
 class ParticleSystem {
 private:
     std::vector<Particle> particles;
@@ -34,40 +44,25 @@ public:
     ParticleSystem() = default;
     
     void EmitBrickBreak(Vector2 position, Color brickColor, int count = 15);
-    void EmitGlow(Vector2 position, Color color, float radius);
+    void EmitPowerUpGlow(Vector2 position, Color color);
     void Update();
     void Draw();
     void Clear() { particles.clear(); }
 };
 
-// GameState类定义（移到前面）
-class GameState {
-public:
-    std::vector<Ball>* balls;
-    Paddle* paddle;
-    int* lives;
-    int* score;
-    float* gameSpeed;
-    float paddleOriginalWidth;
-    
-    GameState(std::vector<Ball>* b, Paddle* p, int* l, int* s, float* gs)
-        : balls(b), paddle(p), lives(l), score(s), gameSpeed(gs) {
-        paddleOriginalWidth = paddle->GetRect().width;
-    }
-};
-
-// 抽象道具效果基类（工厂模式）
+// 道具效果基类
 class PowerUpEffect {
 public:
     virtual ~PowerUpEffect() = default;
     virtual void Apply(GameState* state) = 0;
     virtual void Remove(GameState* state) = 0;
-    virtual void Update(GameState* state, float deltaTime) {}
-    virtual bool IsActive() const { return true; }
+    virtual bool IsTimed() const { return false; }
+    virtual float GetDuration() const { return 0.0f; }
     virtual std::string GetName() const = 0;
+    virtual Color GetColor() const = 0;
 };
 
-// 具体道具效果实现
+// 速度提升效果
 class SpeedBoostEffect : public PowerUpEffect {
 private:
     float multiplier;
@@ -75,12 +70,16 @@ private:
     bool applied;
     
 public:
-    SpeedBoostEffect(float mult) : multiplier(mult), originalSpeed(0), applied(false) {}
+    SpeedBoostEffect(float mult = 1.5f) : multiplier(mult), originalSpeed(1.0f), applied(false) {}
     void Apply(GameState* state) override;
     void Remove(GameState* state) override;
-    std::string GetName() const override { return "速度提升"; }
+    bool IsTimed() const override { return true; }
+    float GetDuration() const override { return 8.0f; }
+    std::string GetName() const override { return "SPEED+"; }
+    Color GetColor() const override { return GREEN; }
 };
 
+// 减速效果
 class SlowMotionEffect : public PowerUpEffect {
 private:
     float multiplier;
@@ -88,45 +87,54 @@ private:
     bool applied;
     
 public:
-    SlowMotionEffect(float mult) : multiplier(mult), originalSpeed(0), applied(false) {}
+    SlowMotionEffect(float mult = 0.5f) : multiplier(mult), originalSpeed(1.0f), applied(false) {}
     void Apply(GameState* state) override;
     void Remove(GameState* state) override;
-    std::string GetName() const override { return "减速"; }
+    bool IsTimed() const override { return true; }
+    float GetDuration() const override { return 6.0f; }
+    std::string GetName() const override { return "SLOW"; }
+    Color GetColor() const override { return BLUE; }
 };
 
-class MultiBallEffect : public PowerUpEffect {private:
+// 多重球效果
+class MultiBallEffect : public PowerUpEffect {
+private:
     int ballCount;
     
 public:
-    MultiBallEffect(int count) : ballCount(count) {}
+    MultiBallEffect(int count = 2) : ballCount(count) {}
     void Apply(GameState* state) override;
     void Remove(GameState* state) override {}
-    std::string GetName() const override { return "多重球"; }
+    bool IsTimed() const override { return false; }
+    std::string GetName() const override { return "MULTI"; }
+    Color GetColor() const override { return PURPLE; }
 };
 
+// 加长挡板效果
 class ExpandPaddleEffect : public PowerUpEffect {
 private:
     float multiplier;
     float originalWidth;
     bool applied;
-     float duration;      // 持续时间
-    float timer;         // 计时器
     
 public:
-    ExpandPaddleEffect(float mult) : multiplier(mult), originalWidth(0), applied(false), duration(5.0f), timer(0.0f) {}
+    ExpandPaddleEffect(float mult = 1.5f) : multiplier(mult), originalWidth(0.0f), applied(false) {}
     void Apply(GameState* state) override;
     void Remove(GameState* state) override;
-    void Update(GameState* state, float deltaTime) override;
-    bool IsActive() const override { return timer < duration; }
-    std::string GetName() const override { return "加长挡板"; }
+    bool IsTimed() const override { return true; }
+    float GetDuration() const override { return 10.0f; }
+    std::string GetName() const override { return "WIDE"; }
+    Color GetColor() const override { return YELLOW; }
 };
 
+// 额外生命效果
 class ExtraLifeEffect : public PowerUpEffect {
 public:
-    ExtraLifeEffect() = default;
     void Apply(GameState* state) override;
     void Remove(GameState* state) override {}
-    std::string GetName() const override { return "额外生命"; }
+    bool IsTimed() const override { return false; }
+    std::string GetName() const override { return "LIFE+"; }
+    Color GetColor() const override { return RED; }
 };
 
 // 道具类
@@ -136,18 +144,12 @@ private:
     Vector2 velocity;
     Rectangle rect;
     std::unique_ptr<PowerUpEffect> effect;
-    Color color;
-    std::string name;
     bool active;
     float lifetime;
     float glowTimer;
     
 public:
-    PowerUp(Vector2 pos, std::unique_ptr<PowerUpEffect> eff, Color col, const std::string& n)
-        : position(pos), effect(std::move(eff)), color(col), name(n), active(true), lifetime(10.0f), glowTimer(0.0f) {
-        rect = {pos.x - 15, pos.y - 15, 30, 30};
-        velocity = {0, 2.5f};
-    }
+    PowerUp(Vector2 pos, std::unique_ptr<PowerUpEffect> eff);
     
     void Update(float deltaTime);
     void Draw(ParticleSystem& particleSystem);
@@ -156,19 +158,16 @@ public:
     
     bool IsActive() const { return active && lifetime > 0; }
     Vector2 GetPosition() const { return position; }
-    std::string GetName() const { return name; }
+    std::string GetName() const { return effect ? effect->GetName() : "?"; }
+    Color GetColor() const { return effect ? effect->GetColor() : WHITE; }
 };
 
 // 道具工厂
 class PowerUpFactory {
-private:
-    json config;
-    
 public:
-    PowerUpFactory();
+    PowerUpFactory() = default;
     std::unique_ptr<PowerUp> CreateRandomPowerUp(Vector2 position);
-    std::unique_ptr<PowerUp> CreatePowerUp(const std::string& type, Vector2 position);
-    float GetDropChance() const;
+    float GetDropChance() const { return 0.3f; }
 };
 
 #endif

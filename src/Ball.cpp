@@ -164,3 +164,59 @@ bool Ball::CheckBrickCollision(Rectangle brickRect) {
     }
     return false;
 }
+
+// ============== 分裂功能实现 ==============
+std::vector<Ball> Ball::Split(int count) {
+    std::vector<Ball> newBalls;
+    
+    if (!launched) return newBalls;
+    
+    // 减小当前球的半径
+    radius = radius * 0.7f;
+    if (radius < 5.0f) radius = 5.0f;
+    
+    // 获取当前速度大小
+    float currentSpeed = std::sqrt(speed.x * speed.x + speed.y * speed.y);
+    float splitSpeed = std::max(currentSpeed, 6.0f);
+    
+    // 创建新球，向不同方向发射
+    for (int i = 0; i < count; i++) {
+        float angle = ((float)i / count) * 2.0f * M_PI + ((float)(rand() % 30) * M_PI / 180.0f);
+        
+        Vector2 newSpeed;
+        newSpeed.x = std::cos(angle) * splitSpeed;
+        newSpeed.y = std::sin(angle) * splitSpeed;
+        
+        // 确保新球不会完全水平或垂直
+        if (std::abs(newSpeed.x) < 1.0f) newSpeed.x = (newSpeed.x >= 0 ? 1.0f : -1.0f) * 2.0f;
+        if (std::abs(newSpeed.y) < 1.0f) newSpeed.y = -3.0f;
+        
+        Ball newBall(position, newSpeed, radius);
+        newBall.SetLaunched(true);
+        newBalls.push_back(newBall);
+    }
+    
+    // 给当前球也加一点随机偏移，避免所有球轨迹相同
+    float randomAngle = ((float)(rand() % 60 - 30) * M_PI / 180.0f);
+    float cosA = std::cos(randomAngle);
+    float sinA = std::sin(randomAngle);
+    float newX = speed.x * cosA - speed.y * sinA;
+    float newY = speed.x * sinA + speed.y * cosA;
+    speed.x = newX;
+    speed.y = newY;
+    
+    return newBalls;
+}
+
+void Ball::SetRandomDirection(float baseSpeed) {
+    if (!launched) return;
+    
+    float angle = ((float)(rand() % 360) * M_PI / 180.0f);
+    speed.x = std::cos(angle) * baseSpeed;
+    speed.y = std::sin(angle) * baseSpeed;
+    
+    // 确保有足够的垂直速度
+    if (std::abs(speed.y) < 2.0f) {
+        speed.y = (speed.y >= 0 ? 2.0f : -2.0f) * baseSpeed * 0.5f;
+    }
+}

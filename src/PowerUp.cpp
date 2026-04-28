@@ -3,10 +3,7 @@
 #include "Paddle.h"
 #include <cmath>
 #include <random>
-#include <fstream>
-#include <nlohmann/json.hpp>
-
-using json = nlohmann::json;
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -18,14 +15,14 @@ static std::mt19937 gen(rd());
 
 // ============== ParticleSystem 实现 ==============
 void ParticleSystem::EmitBrickBreak(Vector2 position, Color brickColor, int count) {
-    std::uniform_real_distribution<float> velDist(-3.0f, 3.0f);
-    std::uniform_real_distribution<float> sizeDist(2.0f, 5.0f);
+    std::uniform_real_distribution<float> velDist(-4.0f, 4.0f);
+    std::uniform_real_distribution<float> sizeDist(2.0f, 6.0f);
     std::uniform_real_distribution<float> lifeDist(0.5f, 1.5f);
     
     for (int i = 0; i < count; i++) {
         Particle p;
         p.position = position;
-        p.velocity = {velDist(gen), velDist(gen)};
+        p.velocity = {velDist(gen), velDist(gen) - 2.0f};
         p.color = brickColor;
         p.life = lifeDist(gen);
         p.size = sizeDist(gen);
@@ -34,18 +31,17 @@ void ParticleSystem::EmitBrickBreak(Vector2 position, Color brickColor, int coun
     }
 }
 
-void ParticleSystem::EmitGlow(Vector2 position, Color color, float radius) {
+void ParticleSystem::EmitPowerUpGlow(Vector2 position, Color color) {
     std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * (float)M_PI);
     std::uniform_real_distribution<float> sizeDist(1.0f, 3.0f);
     
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 6; i++) {
         Particle p;
         float angle = angleDist(gen);
-        float dist = radius * 0.5f;
-        p.position.x = position.x + cosf(angle) * dist;
-        p.position.y = position.y + sinf(angle) * dist;
-        p.velocity.x = cosf(angle) * 0.5f;
-        p.velocity.y = sinf(angle) * 0.5f - 1.0f;
+        p.position.x = position.x + cosf(angle) * 10.0f;
+        p.position.y = position.y + sinf(angle) * 10.0f;
+        p.velocity.x = cosf(angle) * 1.5f;
+        p.velocity.y = sinf(angle) * 1.5f - 2.0f;
         p.color = color;
         p.color.a = 150;
         p.life = 0.8f;
@@ -62,9 +58,9 @@ void ParticleSystem::Update() {
         
         p.position.x += p.velocity.x;
         p.position.y += p.velocity.y;
-        p.velocity.y += 0.2f;
+        p.velocity.y += 0.3f;  // 重力
         p.life -= deltaTime;
-        p.color.a = (unsigned char)(255 * (p.life / 1.5f));
+        p.color.a = (unsigned char)(255 * std::max(0.0f, p.life / 1.5f));
         
         if (p.life <= 0) {
             p.active = false;
@@ -77,7 +73,7 @@ void ParticleSystem::Update() {
 
 void ParticleSystem::Draw() {
     for (const auto& p : particles) {
-        if (p.active) {
+        if (p.active && p.life > 0) {
             DrawCircleV(p.position, p.size, p.color);
         }
     }
@@ -85,7 +81,7 @@ void ParticleSystem::Draw() {
 
 // ============== 道具效果实现 ==============
 void SpeedBoostEffect::Apply(GameState* state) {
-    if (!applied) {
+    if (!applied && state->gameSpeed) {
         originalSpeed = *state->gameSpeed;
         *state->gameSpeed = originalSpeed * multiplier;
         applied = true;
@@ -93,13 +89,14 @@ void SpeedBoostEffect::Apply(GameState* state) {
 }
 
 void SpeedBoostEffect::Remove(GameState* state) {
-    if (applied) {
+    if (applied && state->gameSpeed) {
         *state->gameSpeed = originalSpeed;
+        applied = false;
     }
 }
 
 void SlowMotionEffect::Apply(GameState* state) {
-    if (!applied) {
+    if (!applied && state->gameSpeed) {
         originalSpeed = *state->gameSpeed;
         *state->gameSpeed = originalSpeed * multiplier;
         applied = true;
@@ -107,8 +104,9 @@ void SlowMotionEffect::Apply(GameState* state) {
 }
 
 void SlowMotionEffect::Remove(GameState* state) {
-    if (applied) {
+    if (applied && state->gameSpeed) {
         *state->gameSpeed = originalSpeed;
+        applied = false;
     }
 }
 
@@ -117,60 +115,58 @@ void MultiBallEffect::Apply(GameState* state) {
     
     Ball& originalBall = (*state->balls)[0];
     Vector2 originalPos = originalBall.GetPosition();
-    Vector2 originalSpeed = originalBall.GetSpeed();
     float radius = originalBall.GetRadius();
     
     for (int i = 0; i < ballCount; i++) {
-        float angle = (i * 360.0f / ballCount) * ((float)M_PI / 180.0f);
+        float angle = (float)i * 360.0f / ballCount * ((float)M_PI / 180.0f);
         Vector2 newSpeed;
-        newSpeed.x = originalSpeed.x + cosf(angle) * 3.0f;
-        newSpeed.y = originalSpeed.y + sinf(angle) * 3.0f;
+        newSpeed.x = cosf(angle) * 5.0f;
+        newSpeed.y = -5.0f;
         state->balls->emplace_back(originalPos, newSpeed, radius);
     }
 }
 
 void ExpandPaddleEffect::Apply(GameState* state) {
-    if (!applied) {
+    if (!applied && state->paddle) {
         originalWidth = state->paddle->GetRect().width;
         Rectangle rect = state->paddle->GetRect();
         float newWidth = originalWidth * multiplier;
-        
-        // 限制最大宽度为 200 像素
-        if (newWidth > 200.0f) {
-            newWidth = 200.0f;
-        }
-        
+        if (newWidth > 250.0f) newWidth = 250.0f;
         rect.width = newWidth;
+        // 保持挡板在屏幕内
+        if (rect.x + rect.width > 795) rect.x = 795 - rect.width;
         state->paddle->SetRect(rect);
         applied = true;
-        timer = 0.0f;
-        duration = 5.0f;
     }
 }
 
 void ExpandPaddleEffect::Remove(GameState* state) {
-    if (applied) {
+    if (applied && state->paddle) {
         Rectangle rect = state->paddle->GetRect();
         rect.width = originalWidth;
+        if (rect.x + rect.width > 795) rect.x = 795 - rect.width;
         state->paddle->SetRect(rect);
-    }
-}
-
-void ExpandPaddleEffect::Update(GameState* state, float deltaTime) {
-    if (applied) {
-        timer += deltaTime;
-        if (timer >= duration) {
-            Remove(state);
-            applied = false;
-        }
+        applied = false;
     }
 }
 
 void ExtraLifeEffect::Apply(GameState* state) {
-    (*state->lives)++;
+    if (state->lives) {
+        (*state->lives)++;
+    }
 }
 
 // ============== PowerUp 实现 ==============
+PowerUp::PowerUp(Vector2 pos, std::unique_ptr<PowerUpEffect> eff)
+    : position(pos)
+    , velocity({0.0f, 2.5f})
+    , effect(std::move(eff))
+    , active(true)
+    , lifetime(10.0f)
+    , glowTimer(0.0f) {
+    rect = {pos.x - 18, pos.y - 18, 36, 36};
+}
+
 void PowerUp::Update(float deltaTime) {
     position.y += velocity.y * deltaTime * 60.0f;
     rect.x = position.x - rect.width / 2;
@@ -186,21 +182,27 @@ void PowerUp::Update(float deltaTime) {
 void PowerUp::Draw(ParticleSystem& particleSystem) {
     if (!active) return;
     
-    float glowSize = 15.0f + sinf(glowTimer * 5.0f) * 3.0f;
-    Color glowColor = color;
-    glowColor.a = 100;
+    Color col = GetColor();
+    
+    // 光晕效果
+    float glowSize = 20.0f + sinf(glowTimer * 5.0f) * 5.0f;
+    Color glowColor = col;
+    glowColor.a = 80;
     DrawCircleV(position, glowSize, glowColor);
     
-    DrawRectangleRec(rect, color);
-    DrawRectangleLinesEx(rect, 2, WHITE);
+    // 主体
+    DrawRectangleRounded(rect, 0.3f, 8, col);
+    DrawRectangleRoundedLines(rect, 0.3f, 8, 2, WHITE);
     
-    const char* icon = name.c_str();
-    int fontSize = 20;
+    // 名称
+    const char* icon = GetName().c_str();
+    int fontSize = 16;
     int textWidth = MeasureText(icon, fontSize);
     DrawText(icon, (int)(position.x - textWidth/2), (int)(position.y - fontSize/2), fontSize, WHITE);
     
-    if (glowTimer > 0.1f) {
-        particleSystem.EmitGlow(position, color, glowSize);
+    // 粒子效果
+    if (glowTimer > 0.15f) {
+        particleSystem.EmitPowerUpGlow(position, col);
         glowTimer = 0.0f;
     }
 }
@@ -217,70 +219,23 @@ void PowerUp::Apply(GameState* state) {
 }
 
 // ============== PowerUpFactory 实现 ==============
-PowerUpFactory::PowerUpFactory() {
-    std::ifstream file("powerups.json");
-    if (file.is_open()) {
-        try {
-            config = json::parse(file);
-        } catch (...) {
-            config = json::object();
-        }
-    }
-}
-
 std::unique_ptr<PowerUp> PowerUpFactory::CreateRandomPowerUp(Vector2 position) {
-    std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
+    std::uniform_int_distribution<int> typeDist(0, 4);
     
-    if (!config.contains("powerups")) return nullptr;
+    int type = typeDist(gen);
     
-    auto& powerups = config["powerups"];
-    for (auto& [type, data] : powerups.items()) {
-        float dropChance = data.value("drop_chance", 0.2f);
-        if (chanceDist(gen) < dropChance) {
-            return CreatePowerUp(type, position);
-        }
+    switch (type) {
+        case 0:
+            return std::make_unique<PowerUp>(position, std::make_unique<SpeedBoostEffect>(1.5f));
+        case 1:
+            return std::make_unique<PowerUp>(position, std::make_unique<SlowMotionEffect>(0.5f));
+        case 2:
+            return std::make_unique<PowerUp>(position, std::make_unique<MultiBallEffect>(2));
+        case 3:
+            return std::make_unique<PowerUp>(position, std::make_unique<ExpandPaddleEffect>(1.6f));
+        case 4:
+            return std::make_unique<PowerUp>(position, std::make_unique<ExtraLifeEffect>());
+        default:
+            return nullptr;
     }
-    
-    return nullptr;
-}
-
-std::unique_ptr<PowerUp> PowerUpFactory::CreatePowerUp(const std::string& type, Vector2 position) {
-    if (!config.contains("powerups") || !config["powerups"].contains(type)) {
-        return nullptr;
-    }
-    
-    auto& data = config["powerups"][type];
-    std::string name = data.value("name", "PowerUp");
-    auto colorArray = data.value("color", std::vector<int>{255, 255, 255, 255});
-    Color color = {
-        (unsigned char)colorArray[0],
-        (unsigned char)colorArray[1],
-        (unsigned char)colorArray[2],
-        (unsigned char)colorArray[3]
-    };
-    
-    std::unique_ptr<PowerUpEffect> effect;
-    float effectValue = data.value("effect_value", 1.0f);
-    
-    if (type == "speed_boost") {
-        effect = std::make_unique<SpeedBoostEffect>(effectValue);
-    } else if (type == "slow_motion") {
-        effect = std::make_unique<SlowMotionEffect>(effectValue);
-    } else if (type == "multi_ball") {
-        effect = std::make_unique<MultiBallEffect>((int)effectValue);
-    } else if (type == "expand_paddle") {
-        effect = std::make_unique<ExpandPaddleEffect>(effectValue);
-    } else if (type == "extra_life") {
-        effect = std::make_unique<ExtraLifeEffect>();
-    }
-    
-    if (effect) {
-        return std::make_unique<PowerUp>(position, std::move(effect), color, name);
-    }
-    
-    return nullptr;
-}
-
-float PowerUpFactory::GetDropChance() const {
-    return config.value("global_settings", json::object()).value("base_drop_chance", 0.3f);
 }
