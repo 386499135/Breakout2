@@ -1,0 +1,30 @@
+# 编译产物
+breakout
+breakout_*
+*.o
+*.exe
+*.out
+
+# build 目录
+build/
+cmake-build-*/
+
+# 存档和配置文件
+savegame.json
+scores.txt
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 备份文件
+*.bak
+*~

@@ -1,0 +1,19 @@
+{
+  "levels": [
+    {
+      "name": "Classic",
+      "rows": 5,
+      "cols": 8
+    },
+    {
+      "name": "Diamond", 
+      "rows": 7,
+      "cols": 9
+    },
+    {
+      "name": "Castle",
+      "rows": 6,
+      "cols": 10
+    }
+  ]
+}
